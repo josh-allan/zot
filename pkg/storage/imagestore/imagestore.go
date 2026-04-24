@@ -309,6 +309,8 @@ func (is *ImageStore) GetNextRepositories(lastRepo string, maxEntries int, filte
 			return nil //nolint:nilerr // ignore paths that are not under root dir
 		}
 
+		rel = filepath.ToSlash(rel)
+
 		if ok, err := is.ValidateRepo(rel); !ok || err != nil {
 			return nil //nolint:nilerr // ignore invalid repos
 		}
@@ -383,6 +385,8 @@ func (is *ImageStore) GetRepositories() ([]string, error) {
 			return nil //nolint:nilerr // ignore paths that are not under root dir
 		}
 
+		rel = filepath.ToSlash(rel)
+
 		if ok, err := is.ValidateRepo(rel); !ok || err != nil {
 			return nil //nolint:nilerr // ignore invalid repos
 		}
@@ -433,6 +437,8 @@ func (is *ImageStore) GetNextRepository(processedRepos map[string]struct{}) (str
 		if err != nil {
 			return nil //nolint:nilerr // ignore paths not relative to root dir
 		}
+
+		rel = filepath.ToSlash(rel)
 
 		if _, ok := processedRepos[rel]; ok {
 			return nil // repo already processed

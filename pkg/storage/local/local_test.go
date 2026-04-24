@@ -2822,6 +2822,44 @@ func TestGetRepositories(t *testing.T) {
 		So(repos, ShouldContain, "test-dir-2")
 	})
 
+	Convey("Verify GetRepositories() returns nested repositories", t, func() {
+		dir := t.TempDir()
+
+		log := zlog.NewTestLogger()
+		metrics := monitoring.NewMetricsServer(false, log)
+		cacheDriver, _ := storage.Create("boltdb", cache.BoltDBDriverParameters{
+			RootDir:     dir,
+			Name:        "cache",
+			UseRelPaths: true,
+		}, log)
+
+		imgStore := local.NewImageStore(dir, true, true, log, metrics, nil, cacheDriver, nil, nil)
+
+		err := os.MkdirAll(path.Join(dir, "openshift", "release-images"), 0o755) //nolint: gosec
+		So(err, ShouldBeNil)
+
+		il := ispec.ImageLayout{Version: ispec.ImageLayoutVersion}
+		layoutFileContent, err := json.Marshal(il)
+		So(err, ShouldBeNil)
+
+		err = os.Mkdir(path.Join(dir, "openshift", "release-images", "blobs"), 0o755) //nolint: gosec
+		So(err, ShouldBeNil)
+
+		err = os.Mkdir(path.Join(dir, "openshift", "release-images", storageConstants.BlobUploadDir), 0o755) //nolint: gosec
+		So(err, ShouldBeNil)
+
+		err = os.WriteFile(path.Join(dir, "openshift", "release-images", "index.json"), []byte{}, 0o755) //nolint: gosec
+		So(err, ShouldBeNil)
+
+		err = os.WriteFile(path.Join(dir, "openshift", "release-images", ispec.ImageLayoutFile), layoutFileContent, 0o755) //nolint: gosec
+		So(err, ShouldBeNil)
+
+		repos, err := imgStore.GetRepositories()
+		So(err, ShouldBeNil)
+		So(len(repos), ShouldEqual, 1)
+		So(repos[0], ShouldEqual, "openshift/release-images")
+	})
+
 	Convey("Verify GetRepositories() doesn't return '.' when having an oci layout as root directory ", t, func() {
 		dir := t.TempDir()
 
@@ -2984,6 +3022,34 @@ func TestGetNextRepository(t *testing.T) {
 		_, err = imgStore.GetNextRepository(processedRepos)
 		So(err, ShouldNotBeNil)
 		err = os.Chmod(imgStore.RootDir(), 0o755)
+		So(err, ShouldBeNil)
+	})
+
+	Convey("Return nested repository", t, func() {
+		dir := t.TempDir()
+		log := zlog.NewTestLogger()
+		metrics := monitoring.NewMetricsServer(false, log)
+		cacheDriver, _ := storage.Create("boltdb", cache.BoltDBDriverParameters{
+			RootDir:     dir,
+			Name:        "cache",
+			UseRelPaths: true,
+		}, log)
+
+		imgStore := local.NewImageStore(dir, true, true, log, metrics, nil, cacheDriver, nil, nil)
+		nestedRepoName := "a/b/c"
+
+		srcStorageCtlr := storage.StoreController{DefaultStore: imgStore}
+		image := CreateDefaultImage()
+
+		err := WriteImageToFileSystem(image, nestedRepoName, "0.0.1", srcStorageCtlr)
+		if err != nil {
+			t.Log(err)
+			t.FailNow()
+		}
+
+		processedRepos := make(map[string]struct{}, 0)
+		repo, err := imgStore.GetNextRepository(processedRepos)
+		So(repo, ShouldEqual, nestedRepoName)
 		So(err, ShouldBeNil)
 	})
 }

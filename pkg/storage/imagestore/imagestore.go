@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -132,7 +131,7 @@ func (is *ImageStore) Unlock(lockStart *time.Time) {
 }
 
 func (is *ImageStore) initRepo(name string) error {
-	repoDir := path.Join(is.rootDir, name)
+	repoDir := filepath.Join(is.rootDir, name)
 
 	if !utf8.ValidString(name) {
 		is.log.Error().Msg("invalid UTF-8 input")
@@ -147,14 +146,14 @@ func (is *ImageStore) initRepo(name string) error {
 	}
 
 	// create "blobs" subdir
-	err := is.storeDriver.EnsureDir(path.Join(repoDir, ispec.ImageBlobsDir))
+	err := is.storeDriver.EnsureDir(filepath.Join(repoDir, ispec.ImageBlobsDir))
 	if err != nil {
 		is.log.Error().Err(err).Str("repository", name).Str("dir", repoDir).Msg("failed to create blobs subdir")
 
 		return err
 	}
 	// create BlobUploadDir subdir
-	err = is.storeDriver.EnsureDir(path.Join(repoDir, storageConstants.BlobUploadDir))
+	err = is.storeDriver.EnsureDir(filepath.Join(repoDir, storageConstants.BlobUploadDir))
 	if err != nil {
 		is.log.Error().Err(err).Msg("failed to create blob upload subdir")
 
@@ -162,7 +161,7 @@ func (is *ImageStore) initRepo(name string) error {
 	}
 
 	// "oci-layout" file - create if it doesn't exist
-	ilPath := path.Join(repoDir, ispec.ImageLayoutFile)
+	ilPath := filepath.Join(repoDir, ispec.ImageLayoutFile)
 	if _, err := is.storeDriver.Stat(ilPath); err != nil {
 		il := ispec.ImageLayout{Version: ispec.ImageLayoutVersion}
 
@@ -181,7 +180,7 @@ func (is *ImageStore) initRepo(name string) error {
 	}
 
 	// "index.json" file - create if it doesn't exist
-	indexPath := path.Join(repoDir, ispec.ImageIndexFile)
+	indexPath := filepath.Join(repoDir, ispec.ImageIndexFile)
 	if _, err := is.storeDriver.Stat(indexPath); err != nil {
 		index := ispec.Index{}
 		index.SchemaVersion = 2
@@ -227,7 +226,7 @@ func (is *ImageStore) ValidateRepo(name string) (bool, error) {
 	// at least, expect at least 3 entries - ["blobs", "oci-layout", "index.json"]
 	// and an additional/optional BlobUploadDir in each image store
 	// for s3 we can not create empty dirs, so we check only against index.json and oci-layout
-	dir := path.Join(is.rootDir, name)
+	dir := filepath.Join(is.rootDir, name)
 
 	files, err := is.storeDriver.List(dir)
 	if err != nil {
@@ -247,7 +246,7 @@ func (is *ImageStore) ValidateRepo(name string) (bool, error) {
 	}
 
 	for _, file := range files {
-		if path.Base(file) == ispec.ImageIndexFile {
+		if filepath.Base(file) == ispec.ImageIndexFile {
 			found[ispec.ImageIndexFile] = true
 		}
 
@@ -258,7 +257,7 @@ func (is *ImageStore) ValidateRepo(name string) (bool, error) {
 
 	// check blobs dir exists only for filesystem, in s3 we can't have empty dirs
 	if is.storeDriver.Name() == storageConstants.LocalStorageDriverName {
-		if !is.storeDriver.DirExists(path.Join(dir, ispec.ImageBlobsDir)) {
+		if !is.storeDriver.DirExists(filepath.Join(dir, ispec.ImageBlobsDir)) {
 			return false, nil
 		}
 	}
@@ -476,7 +475,7 @@ func (is *ImageStore) GetNextRepository(processedRepos map[string]struct{}) (str
 func (is *ImageStore) GetImageTags(repo string) ([]string, error) {
 	var lockLatency time.Time
 
-	dir := path.Join(is.rootDir, repo)
+	dir := filepath.Join(is.rootDir, repo)
 	if fi, err := is.storeDriver.Stat(dir); err != nil || !fi.IsDir() {
 		return nil, zerr.ErrRepoNotFound
 	}
@@ -494,7 +493,7 @@ func (is *ImageStore) GetImageTags(repo string) ([]string, error) {
 
 // GetImageManifest returns the image manifest of an image in the specific repository.
 func (is *ImageStore) GetImageManifest(repo, reference string) ([]byte, godigest.Digest, string, error) {
-	dir := path.Join(is.rootDir, repo)
+	dir := filepath.Join(is.rootDir, repo)
 	if fi, err := is.storeDriver.Stat(dir); err != nil || !fi.IsDir() {
 		return nil, "", "", zerr.ErrRepoNotFound
 	}
@@ -640,8 +639,8 @@ func (is *ImageStore) PutImageManifest(repo, reference, mediaType string, //noli
 	}
 
 	// write manifest to "blobs"
-	dir := path.Join(is.rootDir, repo, ispec.ImageBlobsDir, mDigest.Algorithm().String())
-	manifestPath := path.Join(dir, mDigest.Encoded())
+	dir := filepath.Join(is.rootDir, repo, ispec.ImageBlobsDir, mDigest.Algorithm().String())
+	manifestPath := filepath.Join(dir, mDigest.Encoded())
 
 	binfo, err := is.storeDriver.Stat(manifestPath)
 	if err != nil || binfo.Size() != desc.Size {
@@ -789,7 +788,7 @@ func (is *ImageStore) PutImageManifest(repo, reference, mediaType string, //noli
 
 // DeleteImageManifest deletes the image manifest from the repository.
 func (is *ImageStore) DeleteImageManifest(repo, reference string, detectCollisions bool) error {
-	dir := path.Join(is.rootDir, repo)
+	dir := filepath.Join(is.rootDir, repo)
 	if fi, err := is.storeDriver.Stat(dir); err != nil || !fi.IsDir() {
 		return zerr.ErrRepoNotFound
 	}
@@ -845,8 +844,8 @@ func (is *ImageStore) deleteImageManifest(repo, reference string, detectCollisio
 	}
 
 	// now update "index.json"
-	dir := path.Join(is.rootDir, repo)
-	file := path.Join(dir, ispec.ImageIndexFile)
+	dir := filepath.Join(is.rootDir, repo)
+	file := filepath.Join(dir, ispec.ImageIndexFile)
 
 	buf, err := json.Marshal(index)
 	if err != nil {
@@ -872,7 +871,7 @@ func (is *ImageStore) deleteImageManifest(repo, reference string, detectCollisio
 	}
 
 	if toDelete {
-		p := path.Join(dir, ispec.ImageBlobsDir, manifestDesc.Digest.Algorithm().String(),
+		p := filepath.Join(dir, ispec.ImageBlobsDir, manifestDesc.Digest.Algorithm().String(),
 			manifestDesc.Digest.Encoded())
 
 		err = is.storeDriver.Delete(p)
@@ -890,8 +889,8 @@ func (is *ImageStore) deleteImageManifest(repo, reference string, detectCollisio
 
 // BlobUploadPath returns the upload path for a blob in this store.
 func (is *ImageStore) BlobUploadPath(repo, uuid string) string {
-	dir := path.Join(is.rootDir, repo)
-	blobUploadPath := path.Join(dir, storageConstants.BlobUploadDir, uuid)
+	dir := filepath.Join(is.rootDir, repo)
+	blobUploadPath := filepath.Join(dir, storageConstants.BlobUploadDir, uuid)
 
 	return blobUploadPath
 }
@@ -900,7 +899,7 @@ func (is *ImageStore) BlobUploadPath(repo, uuid string) string {
 ListBlobUploads returns all blob uploads present in the repository. The caller function MUST lock from outside.
 */
 func (is *ImageStore) ListBlobUploads(repo string) ([]string, error) {
-	blobUploadPaths, err := is.storeDriver.List(path.Join(is.RootDir(), repo, storageConstants.BlobUploadDir))
+	blobUploadPaths, err := is.storeDriver.List(filepath.Join(is.RootDir(), repo, storageConstants.BlobUploadDir))
 	if err != nil {
 		if errors.As(err, &driver.PathNotFoundError{}) {
 			// blobs uploads folder does not exist
@@ -912,7 +911,7 @@ func (is *ImageStore) ListBlobUploads(repo string) ([]string, error) {
 
 	blobUploads := []string{}
 	for _, blobUploadPath := range blobUploadPaths {
-		blobUploads = append(blobUploads, path.Base(blobUploadPath))
+		blobUploads = append(blobUploads, filepath.Base(blobUploadPath))
 	}
 
 	return blobUploads, err
@@ -1115,7 +1114,7 @@ func (is *ImageStore) FinishBlobUpload(repo, uuid string, body io.Reader, dstDig
 		return zerr.ErrBadBlobDigest
 	}
 
-	dir := path.Join(is.rootDir, repo, ispec.ImageBlobsDir, dstDigest.Algorithm().String())
+	dir := filepath.Join(is.rootDir, repo, ispec.ImageBlobsDir, dstDigest.Algorithm().String())
 
 	err = is.storeDriver.EnsureDir(dir)
 	if err != nil {
@@ -1217,7 +1216,7 @@ func (is *ImageStore) FullBlobUpload(repo string, body io.Reader, dstDigest godi
 		return "", -1, zerr.ErrBadBlobDigest
 	}
 
-	dir := path.Join(is.rootDir, repo, ispec.ImageBlobsDir, dstDigestAlgorithm.String())
+	dir := filepath.Join(is.rootDir, repo, ispec.ImageBlobsDir, dstDigestAlgorithm.String())
 	_ = is.storeDriver.EnsureDir(dir)
 
 	var lockLatency time.Time
@@ -1282,7 +1281,7 @@ func (is *ImageStore) DedupeBlob(src string, dstDigest godigest.Digest, dstRepo 
 		// cache record exists, but due to GC and upgrades from older versions,
 		// disk content and cache records may go out of sync
 		if is.cache.UsesRelativePaths() {
-			dstRecord = path.Join(is.rootDir, dstRecord)
+			dstRecord = filepath.Join(is.rootDir, dstRecord)
 		}
 
 		blobInfo, err := is.storeDriver.Stat(dstRecord)
@@ -1375,7 +1374,7 @@ func (is *ImageStore) DeleteBlobUpload(repo, uuid string) error {
 
 // BlobPath returns the repository path of a blob.
 func (is *ImageStore) BlobPath(repo string, digest godigest.Digest) string {
-	return path.Join(is.rootDir, repo, ispec.ImageBlobsDir, digest.Algorithm().String(), digest.Encoded())
+	return filepath.Join(is.rootDir, repo, ispec.ImageBlobsDir, digest.Algorithm().String(), digest.Encoded())
 }
 
 func (is *ImageStore) GetAllDedupeReposCandidates(digest godigest.Digest) ([]string, error) {
@@ -1401,7 +1400,7 @@ func (is *ImageStore) GetAllDedupeReposCandidates(digest godigest.Digest) ([]str
 
 	for _, blobPath := range blobsPaths {
 		// these can be both full paths or relative paths depending on the cache options
-		if !is.cache.UsesRelativePaths() && path.IsAbs(blobPath) {
+		if !is.cache.UsesRelativePaths() && filepath.IsAbs(blobPath) {
 			blobPath, _ = filepath.Rel(is.rootDir, blobPath)
 		}
 
@@ -1509,7 +1508,7 @@ func (is *ImageStore) checkCacheBlob(digest godigest.Digest) (string, error) {
 	}
 
 	if is.cache.UsesRelativePaths() {
-		dstRecord = path.Join(is.rootDir, dstRecord)
+		dstRecord = filepath.Join(is.rootDir, dstRecord)
 	}
 
 	if _, err := is.storeDriver.Stat(dstRecord); err != nil {
@@ -1729,9 +1728,9 @@ func (is *ImageStore) GetReferrers(repo string, gdigest godigest.Digest, artifac
 
 // GetIndexContent returns index.json contents, the caller function MUST lock from outside.
 func (is *ImageStore) GetIndexContent(repo string) ([]byte, error) {
-	dir := path.Join(is.rootDir, repo)
+	dir := filepath.Join(is.rootDir, repo)
 
-	buf, err := is.storeDriver.ReadFile(path.Join(dir, ispec.ImageIndexFile))
+	buf, err := is.storeDriver.ReadFile(filepath.Join(dir, ispec.ImageIndexFile))
 	if err != nil {
 		if errors.Is(err, driver.PathNotFoundError{}) {
 			is.log.Error().Err(err).Str("dir", dir).Msg("failed to read index.json")
@@ -1748,7 +1747,7 @@ func (is *ImageStore) GetIndexContent(repo string) ([]byte, error) {
 }
 
 func (is *ImageStore) StatIndex(repo string) (bool, int64, time.Time, error) {
-	repoIndexPath := path.Join(is.rootDir, repo, ispec.ImageIndexFile)
+	repoIndexPath := filepath.Join(is.rootDir, repo, ispec.ImageIndexFile)
 
 	fileInfo, err := is.storeDriver.Stat(repoIndexPath)
 	if err != nil {
@@ -1767,9 +1766,9 @@ func (is *ImageStore) StatIndex(repo string) (bool, int64, time.Time, error) {
 }
 
 func (is *ImageStore) PutIndexContent(repo string, index ispec.Index) error {
-	dir := path.Join(is.rootDir, repo)
+	dir := filepath.Join(is.rootDir, repo)
 
-	indexPath := path.Join(dir, ispec.ImageIndexFile)
+	indexPath := filepath.Join(dir, ispec.ImageIndexFile)
 
 	buf, err := json.Marshal(index)
 	if err != nil {
@@ -1864,7 +1863,7 @@ func (is *ImageStore) CleanupRepo(repo string, blobs []godigest.Digest, removeRe
 	if removeRepo && count == len(blobs) && count > 0 && len(blobUploads) == 0 {
 		is.log.Info().Str("repository", repo).Msg("removed all blobs, removing repo")
 
-		if err := is.storeDriver.Delete(path.Join(is.rootDir, repo)); err != nil {
+		if err := is.storeDriver.Delete(filepath.Join(is.rootDir, repo)); err != nil {
 			is.log.Error().Err(err).Str("repository", repo).Msg("failed to remove repo")
 
 			return count, err
@@ -1977,7 +1976,7 @@ func getBlobDigest(imgStore *ImageStore, path string, digestAlgorithm godigest.A
 }
 
 func (is *ImageStore) GetAllBlobs(repo string) ([]godigest.Digest, error) {
-	blobsDir := path.Join(is.rootDir, repo, ispec.ImageBlobsDir)
+	blobsDir := filepath.Join(is.rootDir, repo, ispec.ImageBlobsDir)
 
 	ret := []godigest.Digest{}
 
@@ -1993,7 +1992,7 @@ func (is *ImageStore) GetAllBlobs(repo string) ([]godigest.Digest, error) {
 	}
 
 	for _, algorithmPath := range algorithmPaths {
-		algorithm := godigest.Algorithm(path.Base(algorithmPath))
+		algorithm := godigest.Algorithm(filepath.Base(algorithmPath))
 
 		if !algorithm.Available() {
 			continue
@@ -2041,7 +2040,7 @@ func (is *ImageStore) GetNextDigestWithBlobPaths(repos []string, lastDigests []g
 
 		if fileInfo.IsDir() {
 			// skip repositories not found in repos
-			baseName := path.Base(fileInfo.Path())
+			baseName := filepath.Base(fileInfo.Path())
 			if slices.Contains(repos, baseName) || baseName == ispec.ImageBlobsDir {
 				return nil
 			}
@@ -2055,7 +2054,7 @@ func (is *ImageStore) GetNextDigestWithBlobPaths(repos []string, lastDigests []g
 			return nil
 		}
 
-		baseName := path.Base(fileInfo.Path())
+		baseName := filepath.Base(fileInfo.Path())
 
 		skippedFiles := []string{ispec.ImageLayoutFile, ispec.ImageIndexFile, "meta.db", "cache.db"}
 		if slices.Contains(skippedFiles, baseName) {
@@ -2063,16 +2062,16 @@ func (is *ImageStore) GetNextDigestWithBlobPaths(repos []string, lastDigests []g
 		}
 
 		// Verify path structure follows standard OCI: rootDir/repo/blobs/algorithm/digest
-		parentDir := path.Clean(path.Dir(fileInfo.Path()))
-		grandparentDir := path.Clean(path.Dir(parentDir))
+		parentDir := filepath.Clean(filepath.Dir(fileInfo.Path()))
+		grandparentDir := filepath.Clean(filepath.Dir(parentDir))
 
 		// Require grandparent directory to be ImageBlobsDir (standard OCI structure)
-		if path.Base(grandparentDir) != ispec.ImageBlobsDir {
+		if filepath.Base(grandparentDir) != ispec.ImageBlobsDir {
 			return nil
 		}
 
 		// Verify parent directory is a valid digest algorithm (e.g., sha256, sha512)
-		digestAlgorithm := godigest.Algorithm(path.Base(parentDir))
+		digestAlgorithm := godigest.Algorithm(filepath.Base(parentDir))
 		if !digestAlgorithm.Available() {
 			return nil
 		}

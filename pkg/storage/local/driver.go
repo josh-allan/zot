@@ -7,7 +7,7 @@ import (
 	"errors"
 	"io"
 	"os"
-	"path"
+	fpath "path/filepath"
 	"sort"
 	"time"
 	"unicode/utf8"
@@ -137,7 +137,7 @@ func (driver *Driver) Writer(filepath string, append bool) (storagedriver.FileWr
 		}
 	}
 
-	parentDir := path.Dir(filepath)
+	parentDir := fpath.Dir(filepath)
 	if err := os.MkdirAll(parentDir, storageConstants.DefaultDirPerms); err != nil {
 		return nil, driver.formatErr(err)
 	}
@@ -170,8 +170,8 @@ func (driver *Driver) Writer(filepath string, append bool) (storagedriver.FileWr
 	return newFileWriter(file, offset, driver.commit), nil
 }
 
-func (driver *Driver) WriteFile(filepath string, content []byte) (int, error) {
-	writer, err := driver.Writer(filepath, false)
+func (driver *Driver) WriteFile(fpath string, content []byte) (int, error) {
+	writer, err := driver.Writer(fpath, false)
 	if err != nil {
 		return -1, err
 	}
@@ -240,7 +240,7 @@ func (driver *Driver) List(fullpath string) ([]string, error) {
 
 	keys := make([]string, 0, len(entries))
 	for _, entry := range entries {
-		keys = append(keys, path.Join(fullpath, entry.Name()))
+		keys = append(keys, fpath.Join(fullpath, entry.Name()))
 	}
 
 	return keys, nil
@@ -251,7 +251,7 @@ func (driver *Driver) Move(sourcePath string, destPath string) error {
 		return storagedriver.PathNotFoundError{Path: sourcePath}
 	}
 
-	if err := os.MkdirAll(path.Dir(destPath), storageConstants.DefaultDirPerms); err != nil {
+	if err := os.MkdirAll(fpath.Dir(destPath), storageConstants.DefaultDirPerms); err != nil {
 		return driver.formatErr(err)
 	}
 
@@ -471,16 +471,16 @@ func ValidateHardLink(rootDir string) error {
 		return err
 	}
 
-	err := os.WriteFile(path.Join(rootDir, "hardlinkcheck.txt"),
+	err := os.WriteFile(fpath.Join(rootDir, "hardlinkcheck.txt"),
 		[]byte("check whether hardlinks work on filesystem"), storageConstants.DefaultFilePerms)
 	if err != nil {
 		return err
 	}
 
-	err = os.Link(path.Join(rootDir, "hardlinkcheck.txt"), path.Join(rootDir, "duphardlinkcheck.txt"))
+	err = os.Link(fpath.Join(rootDir, "hardlinkcheck.txt"), fpath.Join(rootDir, "duphardlinkcheck.txt"))
 	if err != nil {
 		// Remove hardlinkcheck.txt if hardlink fails
-		zerr := os.RemoveAll(path.Join(rootDir, "hardlinkcheck.txt"))
+		zerr := os.RemoveAll(fpath.Join(rootDir, "hardlinkcheck.txt"))
 		if zerr != nil {
 			return zerr
 		}
@@ -488,10 +488,10 @@ func ValidateHardLink(rootDir string) error {
 		return err
 	}
 
-	err = os.RemoveAll(path.Join(rootDir, "hardlinkcheck.txt"))
+	err = os.RemoveAll(fpath.Join(rootDir, "hardlinkcheck.txt"))
 	if err != nil {
 		return err
 	}
 
-	return os.RemoveAll(path.Join(rootDir, "duphardlinkcheck.txt"))
+	return os.RemoveAll(fpath.Join(rootDir, "duphardlinkcheck.txt"))
 }
